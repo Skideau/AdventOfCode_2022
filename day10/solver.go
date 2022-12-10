@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -55,4 +56,31 @@ func main() {
 		fmt.Printf("\t[%d] x %d = %d\n", cycleIdx, registerX[cycleIdx-1], cycleIdx*registerX[cycleIdx-1])
 	}
 	fmt.Printf("Cumulated signal strength = %d\n", cumulatedSignalStrength)
+
+	println("\n=====PART2=====")
+	const CRT_WIDE int = 40
+	const CRT_HIGH int = 6
+	var crtScreen [CRT_HIGH][CRT_WIDE]string
+	for cycleCounter, spritePos := range registerX {
+		if cycleCounter >= CRT_HIGH*CRT_WIDE {
+			break
+		}
+		crtRowFloat, crtColFrac := math.Modf(float64(cycleCounter) / float64(CRT_WIDE))
+		crtRow := int(crtRowFloat)
+		crtCol := int(math.Round(crtColFrac * float64(CRT_WIDE)))
+
+		if crtCol >= spritePos-1 && crtCol <= spritePos+1 {
+			crtScreen[crtRow][crtCol] = "#"
+		} else {
+			crtScreen[crtRow][crtCol] = "."
+		}
+	}
+
+	for rowCounter := 0; rowCounter < CRT_HIGH; rowCounter++ {
+		for colCounter := 0; colCounter < CRT_WIDE; colCounter++ {
+			print(crtScreen[rowCounter][colCounter])
+		}
+		println("")
+	}
+	println("\nWe can read capital letters: EHPZPJGL")
 }
