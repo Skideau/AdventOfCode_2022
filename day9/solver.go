@@ -11,9 +11,10 @@ import (
 )
 
 type ropeEnd struct {
-	name string
-	posX int
-	posY int
+	name  string
+	posX  int
+	posY  int
+	moved bool
 }
 
 func (ropePart *ropeEnd) MoveDiag(distVect ropeEnd) {
@@ -45,8 +46,7 @@ func (ropePart *ropeEnd) MoveStraight(direction string) {
 	// fmt.Printf("Straight move: %v\n", ropePart)
 }
 
-func (tail *ropeEnd) Follow(head *ropeEnd) (moved bool) {
-	moved = false
+func (tail *ropeEnd) Follow(head *ropeEnd) {
 	if maxDist(head, tail) > 1 {
 		moveVect := ropeVect(head, tail)
 		if head.posX == tail.posX {
@@ -67,9 +67,10 @@ func (tail *ropeEnd) Follow(head *ropeEnd) (moved bool) {
 			// Move diagonaly
 			tail.MoveDiag(moveVect)
 		}
-		moved = true
+		tail.moved = true
 		return
 	}
+	tail.moved = false
 	return
 }
 
@@ -88,28 +89,38 @@ func updatePositionHistoric(posHistory *[]ropeEnd, newPos *ropeEnd) {
 	}
 }
 
-// func manhattanDist(head *ropeEnd, tail *ropeEnd) int {
-// 	return int(math.Abs(float64((*head).posX-(*tail).posX))) + int(math.Abs(float64((*head).posY-(*tail).posY)))
-// }
-
 func maxDist(head *ropeEnd, tail *ropeEnd) int {
 	return int(math.Max(math.Abs(float64((*head).posX-(*tail).posX)), math.Abs(float64((*head).posY-(*tail).posY))))
 }
 
 func ropeVect(head *ropeEnd, tail *ropeEnd) ropeEnd {
-	return ropeEnd{"Vect", head.posX - tail.posX, head.posY - tail.posY}
+	return ropeEnd{"Vect", head.posX - tail.posX, head.posY - tail.posY, false}
 }
 
 func main() {
-	file, err := os.Open("../inputs/day9/input.txt")
+	file, err := os.Open("input.txt")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer file.Close()
 
-	head := ropeEnd{"Head", 0, 0}
-	tail := ropeEnd{"Tail", 0, 0}
-	tailHistory := append([]ropeEnd{}, tail)
+	// Part 1
+	// knots := [2]ropeEnd{{"Head", 0, 0, true}, {"Tail", 0, 0, false}}
+	// tailHistory := append([]ropeEnd{}, knots[1])
+
+	// Part 2
+	knots := [10]ropeEnd{
+		{"Head", 0, 0, true},
+		{"Tail_1", 0, 0, false},
+		{"Tail_2", 0, 0, false},
+		{"Tail_3", 0, 0, false},
+		{"Tail_4", 0, 0, false},
+		{"Tail_5", 0, 0, false},
+		{"Tail_6", 0, 0, false},
+		{"Tail_7", 0, 0, false},
+		{"Tail_8", 0, 0, false},
+		{"Tail_9", 0, 0, false}}
+	tailHistory := append([]ropeEnd{}, knots[len(knots)-1]) // Keep track of last tail : Tail_9
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -119,15 +130,19 @@ func main() {
 		headMoveRepetition, _ := strconv.Atoi(moveInstructions[1])
 		// fmt.Printf("Head moving: %d times direction: %v\n", headMoveRepetition, headDirection)
 		for moveCounter := 0; moveCounter < headMoveRepetition; moveCounter++ {
-			head.MoveStraight(headDirection)
-			if tail.Follow(&head) {
-				updatePositionHistoric(&tailHistory, &tail)
+			knots[0].MoveStraight(headDirection)
+			for tailCounter := 1; tailCounter < len(knots); tailCounter++ {
+				knots[tailCounter].Follow(&knots[tailCounter-1])
+			}
+			if knots[len(knots)-1].moved {
+				updatePositionHistoric(&tailHistory, &knots[len(knots)-1])
 			}
 		}
 	}
 
-	println("=====PART1=====")
-	fmt.Printf("Tail tooked %d different positions during heads journey\n", len(tailHistory))
+	// println("=====PART1=====")
+	// fmt.Printf("Tail tooked %d different positions during heads journey\n", len(tailHistory))
 
 	println("\n=====PART2=====")
+	fmt.Printf("Tail tooked %d different positions during heads journey\n", len(tailHistory))
 }
