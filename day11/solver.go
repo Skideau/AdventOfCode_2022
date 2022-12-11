@@ -17,6 +17,7 @@ type monkey struct {
 	items               []int
 	operation           func(int) int
 	testLvl             int
+	commonTestLvl       int
 	targetMonkeyId      [2]int
 	nbItemInvestigation int
 }
@@ -33,12 +34,25 @@ func (mk *monkey) throw(monkeyArr *[]monkey) {
 	(*monkeyArr)[targetMonkey].items = append((*monkeyArr)[targetMonkey].items, itemToThrow)
 }
 
-func (mk *monkey) investigateItems(monkeyArr *[]monkey) {
+// func (mk *monkey) investigateItems_partOne(monkeyArr *[]monkey) {
+// 	// Monkey inspects first item of the list
+// 	for _, item := range mk.items {
+// 		item = mk.operation(item)
+// 		// Monkey gets bored
+// 		item = int(math.Floor(float64(item) / 3))
+// 		mk.items[0] = item
+// 		// Item is tested and throwed
+// 		mk.throw(monkeyArr)
+// 		mk.nbItemInvestigation++
+// 	}
+// }
+
+func (mk *monkey) investigateItems_partTwo(monkeyArr *[]monkey) {
 	// Monkey inspects first item of the list
 	for _, item := range mk.items {
 		item = mk.operation(item)
-		// Monkey gets bored
-		item = int(math.Floor(float64(item) / 3))
+		// Find some other way to keep worried lvl at stage
+		item = int(math.Mod(float64(item), float64(mk.commonTestLvl)))
 		mk.items[0] = item
 		// Item is tested and throwed
 		mk.throw(monkeyArr)
@@ -46,9 +60,10 @@ func (mk *monkey) investigateItems(monkeyArr *[]monkey) {
 	}
 }
 
-func createMonkey(monkeyDesc []string) (newMonkey monkey) {
+func createMonkey(monkeyDesc []string) (newMonkey monkey, testLvl int) {
 	newMonkey = monkey{}
 	newMonkey.nbItemInvestigation = 0
+	newMonkey.commonTestLvl = 0 // For now, to be updated later
 	for _, newLine := range monkeyDesc {
 		lineArr := strings.Fields(newLine)
 		switch lineArr[0] {
@@ -66,7 +81,8 @@ func createMonkey(monkeyDesc []string) (newMonkey monkey) {
 			operationElements := strings.Fields(strippedOperationLine[1])
 			newMonkey.operation = fctBuilder_operation(operationElements[1], operationElements[2])
 		case "Test:":
-			newMonkey.testLvl, _ = strconv.Atoi(lineArr[len(lineArr)-1])
+			testLvl, _ = strconv.Atoi(lineArr[len(lineArr)-1])
+			newMonkey.testLvl = testLvl
 		case "If":
 			if lineArr[1] == "true:" {
 				newMonkey.targetMonkeyId[0], _ = strconv.Atoi(lineArr[len(lineArr)-1])
@@ -83,9 +99,9 @@ func fctBuilder_operation(operator string, operand string) func(int) int {
 		secondOperator, _ := strconv.Atoi(operand)
 		switch operator {
 		case "+":
-			return func(worriedLvl int) int { return worriedLvl + secondOperator }
+			return func(worriedLvl int) int { return worriedLvl + int(secondOperator) }
 		case "*":
-			return func(worriedLvl int) int { return worriedLvl * secondOperator }
+			return func(worriedLvl int) int { return worriedLvl * int(secondOperator) }
 		default:
 			fmt.Println("[ERROR] Function builder: Operand not listed ")
 			return nil
@@ -125,13 +141,24 @@ func main() {
 	}
 
 	monkeys := []monkey{}
+	commonTestLvl := 1
 	for _, desc := range monkeyDesc {
-		monkeys = append(monkeys, createMonkey(desc))
+		newMonkey, newTestLvl := createMonkey(desc)
+		monkeys = append(monkeys, newMonkey)
+		commonTestLvl *= newTestLvl
 	}
 
-	for roundCounter := 0; roundCounter < 20; roundCounter++ {
+	for monkeyIdx, _ := range monkeys {
+		monkeys[monkeyIdx].commonTestLvl = commonTestLvl
+	}
+
+	// nbRound_partOne := 20
+	nbRound_partTwo := 10000
+	nbRound := nbRound_partTwo
+	for roundCounter := 0; roundCounter < nbRound; roundCounter++ {
 		for monkeyIdx, monkey := range monkeys {
-			monkey.investigateItems(&monkeys)
+			// monkey.investigateItems_partOne(&monkeys)
+			monkey.investigateItems_partTwo(&monkeys)
 			monkeys[monkeyIdx] = monkey
 		}
 		// Debug prints for each round results
@@ -141,16 +168,14 @@ func main() {
 		// }
 	}
 
-	println("=====PART1=====")
+	fmt.Println("=====PART1===== && =====PART2=====")
 	investigationStats := []int{}
 	fmt.Println("Monkeys' items investigation statistics:")
 	for _, monkey := range monkeys {
-		fmt.Printf("\tMonkey[%d] inespected items %d times\n", monkey.id, monkey.nbItemInvestigation)
+		fmt.Printf("\tMonkey[%d] inspected items %d times\n", monkey.id, monkey.nbItemInvestigation)
 		investigationStats = append(investigationStats, monkey.nbItemInvestigation)
 	}
 	sort.Ints(investigationStats)
 	monkeyBusiness := investigationStats[len(investigationStats)-1] * investigationStats[len(investigationStats)-2]
 	fmt.Printf("Monkey business gives: %d x %d = %d\n", investigationStats[len(investigationStats)-1], investigationStats[len(investigationStats)-2], monkeyBusiness)
-
-	println("\n=====PART2=====")
 }
