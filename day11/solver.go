@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -119,8 +120,16 @@ func fctBuilder_operation(operator string, operand string) func(int) int {
 	}
 }
 
+func monitorFuncPerf(funcName string) func() {
+	funcStart := time.Now()
+	return func() {
+		fmt.Printf("Function '%s' took: %v\n", funcName, time.Since(funcStart))
+	}
+}
+
 func main() {
-	file, err := os.Open("input.txt")
+	defer monitorFuncPerf("main")()
+	file, err := os.Open("../inputs/day11/input.txt")
 	if err != nil {
 		log.Fatal(err)
 	}
