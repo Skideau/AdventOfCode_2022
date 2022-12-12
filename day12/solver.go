@@ -9,6 +9,13 @@ import (
 	"time"
 )
 
+type pathNode struct {
+	pathIndex  int
+	pos        position
+	neighbours []position
+	triedPath  []position
+}
+
 type position struct {
 	posX    int
 	posY    int
@@ -106,13 +113,14 @@ func (areaMap grid) FindReachableNeighbours(source position, currentPos position
 	return neighbourCounter, neighbours
 }
 
-func (areaMap grid) SelectBestNeighbour(currentPos position, neighbours []position, posHistory []position) position {
+func (areaMap grid) SelectBestNeighbour(currentPos position, neighbours []position, posHistory []position) (position, bool) {
 	distArr := make([]int, len(neighbours))
 	minDist := 10 * areaMap.start.ManhDist(areaMap.goal)
 	var chosenNeigh position = currentPos
+	var neighbourFound bool = false
 	for nIdx, neighbour := range neighbours {
 		if areaMap.goal.Equal(neighbour) {
-			return neighbour
+			return neighbour, true
 		}
 		alreadyVisited := false
 		for _, historicPos := range posHistory {
@@ -130,10 +138,11 @@ func (areaMap grid) SelectBestNeighbour(currentPos position, neighbours []positi
 		if newDist < minDist {
 			minDist = newDist
 			chosenNeigh = neighbour
+			neighbourFound = true
 			fmt.Printf("\t\tSelecting neighbour: %v\n", chosenNeigh)
 		}
 	}
-	return chosenNeigh
+	return chosenNeigh, neighbourFound
 }
 
 func (areaMap *grid) String() (strMap string) {
@@ -171,6 +180,7 @@ func monitorFuncPerf(funcName string) func() {
 
 func main() {
 	defer monitorFuncPerf("main")()
+
 	file, err := os.Open("../inputs/day12/input.txt")
 	if err != nil {
 		log.Fatal(err)
@@ -195,6 +205,7 @@ func main() {
 
 	sourcePos := areaMap.start
 	currentPos := sourcePos
+	newPosFound := true
 	posCounter := 0
 	posHistory := []position{}
 	fmt.Printf("Journey:\n")
@@ -206,15 +217,18 @@ func main() {
 			break
 		}
 		sourcePos = currentPos
-		currentPos = areaMap.SelectBestNeighbour(currentPos, neighbours, posHistory)
+		currentPos, newPosFound = areaMap.SelectBestNeighbour(currentPos, neighbours, posHistory)
+		if !newPosFound {
+			fmt.Println("Failed to find new neighbour")
+			break
+		}
 		posHistory = append(posHistory, currentPos)
 		posCounter++
 		fmt.Printf("  [%d] %v\n", posCounter, currentPos)
-		if posCounter > 30 {
-			break
-		}
 	}
 
 	fmt.Println("=====PART1=====")
-	fmt.Printf("Number of steps required to reach goal: %d\n", posCounter)
+	if currentPos.Equal(areaMap.goal) {
+		fmt.Printf("Number of steps required to reach goal: %d\n", posCounter)
+	}
 }
