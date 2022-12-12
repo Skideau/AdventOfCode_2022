@@ -9,19 +9,31 @@ import (
 	"time"
 )
 
-type pathNode struct {
-	pathIndex  int
-	pos        position
-	neighbours []position
-	triedPath  []position
-}
-
 type position struct {
 	posX    int
 	posY    int
+	weight  int // manhattan dist to grid goal
 	height  int
 	isStart bool
 	isGoal  bool
+}
+
+func createPosition(rowIdx int, colIdx int, heightChar rune) position {
+	startPos := false
+	goalPos := false
+
+	if heightChar == 'S' {
+		// Start Position
+		startPos = true
+		heightChar = 'a'
+	}
+	if heightChar == 'E' {
+		// Goal Position
+		goalPos = true
+		heightChar = 'z'
+	}
+	positionHeight := int(heightChar-'0') - int('a'-'0')
+	return position{colIdx, rowIdx, 0, positionHeight, startPos, goalPos}
 }
 
 func (pos position) ManhDist(targetPos position) int {
@@ -33,7 +45,7 @@ func (pos position) Equal(targetPos position) bool {
 }
 
 func (pos position) Add(posTransform [2]int) position {
-	return position{pos.posX + posTransform[0], pos.posY + posTransform[1], 0, false, false}
+	return position{pos.posX + posTransform[0], pos.posY + posTransform[1], 0, 0, false, false}
 }
 
 func (pos position) Reachable(target position) bool {
@@ -61,33 +73,12 @@ func (areaMap grid) FindPos(fakePos position) position {
 	return areaMap.heightMap[mapIdx]
 }
 
-func (areaMap *grid) AddHeightData(rowIdx int, colIdx int, heightChar rune) bool {
-	if areaMap.mapWidth == 0 {
-		fmt.Printf("[ERROR] Map width not set\n")
-		return false
+func (areaMap *grid) UpdateHeightMap(positionArray []position) {
+	for _, position := range positionArray {
+		position.weight = position.ManhDist(areaMap.goal)
+		mapIdx := position.posX + position.posY*areaMap.mapWidth
+		areaMap.heightMap[mapIdx] = position
 	}
-
-	startPos := false
-	goalPos := false
-
-	if heightChar == 'S' {
-		// Start Position
-		startPos = true
-		areaMap.start = position{colIdx, rowIdx, 0, startPos, goalPos}
-		heightChar = 'a'
-	}
-	if heightChar == 'E' {
-		// Goal Position
-		goalPos = true
-		areaMap.goal = position{colIdx, rowIdx, int('z'-'0') - int('a'-'0'), startPos, goalPos}
-		heightChar = 'z'
-	}
-
-	mapIdx := colIdx + rowIdx*areaMap.mapWidth
-	positionHeight := int(heightChar-'0') - int('a'-'0')
-	areaMap.heightMap[mapIdx] = position{colIdx, rowIdx, positionHeight, startPos, goalPos}
-
-	return true
 }
 
 func (areaMap grid) FindReachableNeighbours(source position, currentPos position) (int, []position) {
@@ -103,7 +94,6 @@ func (areaMap grid) FindReachableNeighbours(source position, currentPos position
 		fakePos := currentPos.Add(posTrans)
 		if !source.Equal(fakePos) && areaMap.ValidPos(fakePos) {
 			gridPos := areaMap.FindPos(fakePos)
-			fmt.Printf("\tChecking gridPos: %v\n", gridPos)
 			if currentPos.Reachable(gridPos) {
 				neighbours = append(neighbours, gridPos)
 				neighbourCounter++
@@ -113,37 +103,37 @@ func (areaMap grid) FindReachableNeighbours(source position, currentPos position
 	return neighbourCounter, neighbours
 }
 
-func (areaMap grid) SelectBestNeighbour(currentPos position, neighbours []position, posHistory []position) (position, bool) {
-	distArr := make([]int, len(neighbours))
-	minDist := 10 * areaMap.start.ManhDist(areaMap.goal)
-	var chosenNeigh position = currentPos
-	var neighbourFound bool = false
-	for nIdx, neighbour := range neighbours {
-		if areaMap.goal.Equal(neighbour) {
-			return neighbour, true
-		}
-		alreadyVisited := false
-		for _, historicPos := range posHistory {
-			if neighbour.Equal(historicPos) {
-				alreadyVisited = true
-				fmt.Printf("\t\tAlready visited neighbour: %v\n", neighbour)
-				break
-			}
-		}
-		if alreadyVisited {
-			continue
-		}
-		newDist := areaMap.goal.ManhDist(neighbour)
-		distArr[nIdx] = newDist
-		if newDist < minDist {
-			minDist = newDist
-			chosenNeigh = neighbour
-			neighbourFound = true
-			fmt.Printf("\t\tSelecting neighbour: %v\n", chosenNeigh)
-		}
-	}
-	return chosenNeigh, neighbourFound
-}
+// func (areaMap grid) SelectBestNeighbour(currentPos position, neighbours []position, posHistory []position) (position, bool) {
+// 	distArr := make([]int, len(neighbours))
+// 	minDist := 10 * areaMap.start.ManhDist(areaMap.goal)
+// 	var chosenNeigh position = currentPos
+// 	var neighbourFound bool = false
+// 	for nIdx, neighbour := range neighbours {
+// 		if areaMap.goal.Equal(neighbour) {
+// 			return neighbour, true
+// 		}
+// 		alreadyVisited := false
+// 		for _, historicPos := range posHistory {
+// 			if neighbour.Equal(historicPos) {
+// 				alreadyVisited = true
+// 				fmt.Printf("\t\tAlready visited neighbour: %v\n", neighbour)
+// 				break
+// 			}
+// 		}
+// 		if alreadyVisited {
+// 			continue
+// 		}
+// 		newDist := areaMap.goal.ManhDist(neighbour)
+// 		distArr[nIdx] = newDist
+// 		if newDist < minDist {
+// 			minDist = newDist
+// 			chosenNeigh = neighbour
+// 			neighbourFound = true
+// 			fmt.Printf("\t\tSelecting neighbour: %v\n", chosenNeigh)
+// 		}
+// 	}
+// 	return chosenNeigh, neighbourFound
+// }
 
 func (areaMap *grid) String() (strMap string) {
 	strMap = "{\n"
@@ -168,6 +158,123 @@ func (areaMap *grid) String() (strMap string) {
 		}
 	}
 	strMap += "}\n"
+	strMap += "{\n"
+	for mapIdx := 0; mapIdx < len(areaMap.heightMap); mapIdx++ {
+		mapPos := areaMap.heightMap[mapIdx]
+		if mapPos.posX == 0 {
+			strMap += "  [ "
+		}
+
+		newWeight := fmt.Sprint(mapPos.weight)
+		if len(newWeight) <= 1 {
+			newWeight = "0" + newWeight
+		}
+		strMap += newWeight + " "
+
+		if mapPos.posX == areaMap.mapWidth-1 {
+			strMap += "] \n"
+		}
+	}
+	strMap += "}\n"
+	return
+}
+
+type pathNode struct {
+	pathIndex            int
+	pos                  position
+	nbAvailableNeighbour int
+	neighbours           []position
+	triedPath            []position
+}
+
+func (node *pathNode) GetNextBestNeighbour() (position, bool) {
+	if len(node.neighbours) <= 0 {
+		// No more neighbours available
+		return position{}, false
+	}
+
+	chosenNeighbourIdx := 0
+	chosenNeighbour := node.neighbours[chosenNeighbourIdx]
+	for neighbourIdx, neighbour := range node.neighbours {
+		if neighbour.weight < chosenNeighbour.weight {
+			chosenNeighbourIdx = neighbourIdx
+			chosenNeighbour = neighbour
+		}
+	}
+	node.neighbours = append(node.neighbours[:chosenNeighbourIdx], node.neighbours[chosenNeighbourIdx+1:]...)
+	node.triedPath = append(node.triedPath, chosenNeighbour)
+	return chosenNeighbour, true
+}
+
+type mapPath []pathNode
+
+func (myPath mapPath) IsPosInPath(testPos position) bool {
+	posFound := false
+	for _, node := range myPath {
+		if node.pos.Equal(testPos) {
+			posFound = true
+			break
+		}
+	}
+	return posFound
+}
+
+func (myPath mapPath) GetLastTreatableNodeIdx() int {
+	fmt.Printf("Current last pos path[%d] : %v\n", len(myPath)-1, myPath[len(myPath)-1].pos)
+	for nodeCounter := len(myPath) - 1; nodeCounter >= 0; nodeCounter-- {
+		currentNode := myPath[nodeCounter]
+		if currentNode.nbAvailableNeighbour > 1 && len(currentNode.triedPath) < len(currentNode.neighbours) {
+			fmt.Printf("\tWent back to node[%d] to pos: %v\n", nodeCounter, currentNode.pos)
+			return nodeCounter
+		}
+	}
+	return -1
+}
+
+func (myPath mapPath) BuildPath(areaMap *grid) (newPath mapPath, pathBlocked bool, nodeBlocked bool) {
+	nodeBlocked = false
+	pathBlocked = false
+
+	currentNodeIdx := myPath.GetLastTreatableNodeIdx()
+	if currentNodeIdx < 0 {
+		// No more treatable node in path
+		pathBlocked = true
+		return
+	}
+	newPath = myPath[:currentNodeIdx+1]
+
+	currentNode := myPath[currentNodeIdx]
+	sourcePos := currentNode.pos
+	currentPos, neighbourFound := currentNode.GetNextBestNeighbour()
+
+	if !neighbourFound {
+		nodeBlocked = true
+		return
+	}
+
+	for !currentPos.Equal(areaMap.goal) {
+		nbNeighbours, neighbours := (*areaMap).FindReachableNeighbours(sourcePos, currentPos)
+		if nbNeighbours <= 0 {
+			nodeBlocked = true
+			return
+		}
+		currentNode = pathNode{len(newPath), currentPos, nbNeighbours, neighbours, make([]position, 0)}
+		newPath = append(newPath, currentNode)
+		sourcePos = currentPos
+		tmpPos := currentPos
+		tmpPos, neighbourFound = currentNode.GetNextBestNeighbour()
+		for neighbourFound && newPath.IsPosInPath(tmpPos) {
+			tmpPos, neighbourFound = currentNode.GetNextBestNeighbour()
+		}
+		if !neighbourFound {
+			nodeBlocked = true
+			return
+		}
+		currentPos = tmpPos
+	}
+	currentNode = pathNode{len(newPath), currentPos, 0, make([]position, 0), make([]position, 0)}
+	newPath = append(newPath, currentNode)
+
 	return
 }
 
@@ -189,6 +296,7 @@ func main() {
 
 	areaMap := grid{}
 	areaMap.heightMap = map[int]position{}
+	var positionArray []position
 	lineCounter := 0
 
 	scanner := bufio.NewScanner(file)
@@ -196,39 +304,44 @@ func main() {
 		currentLine := scanner.Text()
 		areaMap.mapWidth = len(currentLine)
 		for charIdx, charData := range currentLine {
-			areaMap.AddHeightData(lineCounter, charIdx, charData)
+			newPos := createPosition(lineCounter, charIdx, charData)
+			positionArray = append(positionArray, newPos)
+			if newPos.isStart {
+				areaMap.start = newPos
+			} else if newPos.isGoal {
+				areaMap.goal = newPos
+			}
 		}
 		lineCounter++
 	}
 	areaMap.mapHeight = lineCounter
-	fmt.Printf("%s", &areaMap)
+	areaMap.UpdateHeightMap(positionArray)
+	// fmt.Printf("%s", &areaMap)
 
-	sourcePos := areaMap.start
-	currentPos := sourcePos
-	newPosFound := true
-	posCounter := 0
-	posHistory := []position{}
-	fmt.Printf("Journey:\n")
-	fmt.Printf("  [0] %v\n", currentPos)
-	for !currentPos.Equal(areaMap.goal) {
-		nbPos, neighbours := areaMap.FindReachableNeighbours(sourcePos, currentPos)
-		if nbPos <= 0 {
-			fmt.Printf("[ERROR] Journey stopped -> No reachable position\n")
+	// Initialize path with source position
+	sourceNeighboursNb, sourceNeighbours := areaMap.FindReachableNeighbours(areaMap.start, areaMap.start)
+	sourceNode := pathNode{0, areaMap.start, sourceNeighboursNb, sourceNeighbours, make([]position, 0)}
+	var gridPath mapPath
+	gridPath = append(gridPath, sourceNode)
+
+	// Proceed to build path
+	pathBlocked := false
+	nodeBlocked := false
+	for !pathBlocked {
+		gridPath, pathBlocked, nodeBlocked = gridPath.BuildPath(&areaMap)
+		if !nodeBlocked {
 			break
 		}
-		sourcePos = currentPos
-		currentPos, newPosFound = areaMap.SelectBestNeighbour(currentPos, neighbours, posHistory)
-		if !newPosFound {
-			fmt.Println("Failed to find new neighbour")
-			break
-		}
-		posHistory = append(posHistory, currentPos)
-		posCounter++
-		fmt.Printf("  [%d] %v\n", posCounter, currentPos)
+		fmt.Println("Node blocked, trying another way")
+	}
+
+	if pathBlocked {
+		fmt.Printf("[ERROR] Path blocked without finding any access to the final goal\n")
 	}
 
 	fmt.Println("=====PART1=====")
-	if currentPos.Equal(areaMap.goal) {
-		fmt.Printf("Number of steps required to reach goal: %d\n", posCounter)
+	fmt.Printf("Current gridPath has %d nodes, the last one is %v\n", len(gridPath), gridPath[len(gridPath)-1].pos)
+	if gridPath[len(gridPath)-1].pos.Equal(areaMap.goal) {
+		fmt.Printf("Number of steps required to reach goal: %d\n", len(gridPath)-1)
 	}
 }
