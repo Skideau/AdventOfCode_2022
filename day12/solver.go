@@ -53,7 +53,7 @@ func (pos position) Reachable(target position) bool {
 }
 
 func (pos position) String() string {
-	return fmt.Sprintf("[%d ; %d] = %d", pos.posX, pos.posY, pos.height)
+	return fmt.Sprintf("[%d ; %d] = {%d ; %d}", pos.posX, pos.posY, pos.height, pos.weight)
 }
 
 type grid struct {
@@ -190,6 +190,7 @@ type pathNode struct {
 func (node *pathNode) GetNextBestNeighbour() (position, bool) {
 	if len(node.neighbours) <= 0 {
 		// No more neighbours available
+		// fmt.Printf("\t\tNo more neighbours listed for pos %v\n", node.pos)
 		return position{}, false
 	}
 
@@ -203,6 +204,7 @@ func (node *pathNode) GetNextBestNeighbour() (position, bool) {
 	}
 	node.neighbours = append(node.neighbours[:chosenNeighbourIdx], node.neighbours[chosenNeighbourIdx+1:]...)
 	node.triedPath = append(node.triedPath, chosenNeighbour)
+	// fmt.Printf("\t\tFound %d available neigh and %d tried ones for pos %v\n", len(node.neighbours), len(node.triedPath), node.pos)
 	return chosenNeighbour, true
 }
 
@@ -212,6 +214,7 @@ func (myPath mapPath) IsPosInPath(testPos position) bool {
 	posFound := false
 	for _, node := range myPath {
 		if node.pos.Equal(testPos) {
+			// fmt.Printf("\t\tFound in path[%d]: %v\n", len(myPath), node.pos)
 			posFound = true
 			break
 		}
@@ -220,11 +223,11 @@ func (myPath mapPath) IsPosInPath(testPos position) bool {
 }
 
 func (myPath mapPath) GetLastTreatableNodeIdx() int {
-	fmt.Printf("Current last pos path[%d] : %v\n", len(myPath)-1, myPath[len(myPath)-1].pos)
+	// fmt.Printf("Current path : %v\n", myPath)
 	for nodeCounter := len(myPath) - 1; nodeCounter >= 0; nodeCounter-- {
 		currentNode := myPath[nodeCounter]
 		if currentNode.nbAvailableNeighbour > 1 && len(currentNode.triedPath) < len(currentNode.neighbours) {
-			fmt.Printf("\tWent back to node[%d] to pos: %v\n", nodeCounter, currentNode.pos)
+			// fmt.Printf("\tWent back to node[%d] to pos: %v with %d available neighbours and %d tried ones\n", nodeCounter, currentNode.pos, len(currentNode.neighbours), len(currentNode.triedPath))
 			return nodeCounter
 		}
 	}
@@ -246,6 +249,7 @@ func (myPath mapPath) BuildPath(areaMap *grid) (newPath mapPath, pathBlocked boo
 	currentNode := myPath[currentNodeIdx]
 	sourcePos := currentNode.pos
 	currentPos, neighbourFound := currentNode.GetNextBestNeighbour()
+	newPath[currentNode.pathIndex] = currentNode
 
 	if !neighbourFound {
 		nodeBlocked = true
@@ -255,6 +259,7 @@ func (myPath mapPath) BuildPath(areaMap *grid) (newPath mapPath, pathBlocked boo
 	for !currentPos.Equal(areaMap.goal) {
 		nbNeighbours, neighbours := (*areaMap).FindReachableNeighbours(sourcePos, currentPos)
 		if nbNeighbours <= 0 {
+			// fmt.Println("\t\tNo reachable neighbours found.")
 			nodeBlocked = true
 			return
 		}
@@ -263,8 +268,10 @@ func (myPath mapPath) BuildPath(areaMap *grid) (newPath mapPath, pathBlocked boo
 		sourcePos = currentPos
 		tmpPos := currentPos
 		tmpPos, neighbourFound = currentNode.GetNextBestNeighbour()
+		newPath[currentNode.pathIndex] = currentNode
 		for neighbourFound && newPath.IsPosInPath(tmpPos) {
 			tmpPos, neighbourFound = currentNode.GetNextBestNeighbour()
+			newPath[currentNode.pathIndex] = currentNode
 		}
 		if !neighbourFound {
 			nodeBlocked = true
@@ -275,6 +282,15 @@ func (myPath mapPath) BuildPath(areaMap *grid) (newPath mapPath, pathBlocked boo
 	currentNode = pathNode{len(newPath), currentPos, 0, make([]position, 0), make([]position, 0)}
 	newPath = append(newPath, currentNode)
 
+	return
+}
+
+func (myPath mapPath) String() (strMap string) {
+	strMap = fmt.Sprintf("mapPath[%d]: { ", len(myPath))
+	for _, node := range myPath {
+		strMap += fmt.Sprintf("[%d ; %d] ", node.pos.posX, node.pos.posY)
+	}
+	strMap += "}"
 	return
 }
 
@@ -327,12 +343,18 @@ func main() {
 	// Proceed to build path
 	pathBlocked := false
 	nodeBlocked := false
+	nbBlockedNode := 0
 	for !pathBlocked {
 		gridPath, pathBlocked, nodeBlocked = gridPath.BuildPath(&areaMap)
 		if !nodeBlocked {
 			break
 		}
-		fmt.Println("Node blocked, trying another way")
+		nbBlockedNode++
+		if math.Mod(float64(nbBlockedNode), 10) == 0 {
+			fmt.Printf("Path has been reset %d times\n", nbBlockedNode)
+			fmt.Printf("\tLast path %v\n", gridPath)
+		}
+		// fmt.Println("Node blocked, trying another way")
 	}
 
 	if pathBlocked {
